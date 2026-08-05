@@ -106,9 +106,6 @@ const registerUser = async (req, res) => {
             });
         }
 
-        // Hash raw password with bcrypt before DB creation (#757)
-        const hashedPassword = await bcrypt.hash(password, PASSWORD_SALT_ROUNDS);
-
         // Split name into first and last names for defaults
         const nameParts = cleanName.split(/\s+/);
         const firstName = nameParts[0] || "";
@@ -118,10 +115,11 @@ const registerUser = async (req, res) => {
         const defaultPrepPilotId = cleanEmail.split("@")[0] + Math.floor(1000 + Math.random() * 9000);
 
         // Auto-verify user — email verification temporarily disabled
+        // Note: Password hashing is handled by User model's pre-save hook (UserSchema.pre('save'))
         const user = await User.create({
             name: cleanName,
             email: cleanEmail,
-            password: hashedPassword,
+            password: password,
             profileImageUrl,
             firstName,
             lastName,
@@ -533,8 +531,8 @@ const changePassword = async (req, res) => {
             return res.status(400).json({ success: false, message: "Incorrect original password" });
         }
 
-        // Hash new password before saving (#757)
-        user.password = await bcrypt.hash(newPassword, PASSWORD_SALT_ROUNDS);
+        // Set new password - User model's pre-save hook handles hashing
+        user.password = newPassword;
 
         // Fix #759: Revoke active refresh tokens in database & increment tokenVersion for access tokens
         user.refreshTokenHash = null;
