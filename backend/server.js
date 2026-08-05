@@ -75,21 +75,63 @@ app.use((req, res, next) => {
   next();
 });
 
-connectDB()
-  .then((success) => {
-    if (success) {
-      console.log("MongoDB connected successfully");
-    } else {
-      console.warn("⚠️ Failed to connect to MongoDB - server will run without database connection");
-    }
-  })
-  .catch((err) => {
-    console.error("Database connection error:", err.message);
-  });
+// Database connection - block startup until ready or timeout
+const DB_CONNECTION_TIMEOUT_MS = 30000; // 30 seconds
 
-// Middleware
-app.use(express.json());
-app.use(cookieParser());
+async function startServer() {
+  try {
+    console.log("Connecting to MongoDB...");
+    
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("Database connection timeout (30s)")), DB_CONNECTION_TIMEOUT_MS);
+    });
+    
+    const connectionPromise = connectDB();
+    const success = await Promise.race([connectionPromise, timeoutPromise]);
+    
+    if (!success) {
+      console.error("FATAL: Cannot connect to MongoDB - database is required for this service");
+      console.error("Exiting application...");
+      process.exit(1);
+    }
+    
+    console.log("MongoDB connected successfully");
+    
+  } catch (err) {
+    console.error("FATAL: Database connection failed:", err.message);
+    console.error("Exiting application...");
+    process.exit(1);
+  }
+  
+  // Middleware
+  app.use(express.json());
+  app.use(cookieParser());
+  
+  // Start listening
+  const PORT = process.env.PORT || 5000;
+  const server = app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server connected and running on port ${PORT}`);
+    if (process.env.NODE_ENV === "production") {
+      console.log("Allowed CORS origins (production):");
+    } else {
+      console.log("Allowed CORS origins (development):");
+    }
+    for (const o of allowedOrigins) {
+      console.log("  -", o);
+    }
+  });
+  
+  server.on("error", (err) => {
+    if (err.code === "EADDRINUSE") {
+      console.error(`Port ${PORT} is already in use. Please free the port or use a different one.`);
+      process.exit(1);
+    } else {
+      console.error("Server error:", err);
+    }
+  });
+}
+
+startServer();
 
 //Routes
 app.use("/api/auth", sensitiveRouteHeaders,authRoutes);
