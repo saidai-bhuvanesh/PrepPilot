@@ -387,6 +387,17 @@ const updateUserProfile = async (req, res) => {
             return res.status(404).json({ success: false, message: "User not found" });
         }
 
+        // Validate country against ISO 3166-1 alpha-2 country codes
+        if (country !== undefined) {
+            const validCountryRegex = /^[A-Z]{2}$/i;
+            if (!validCountryRegex.test(country)) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: "Invalid country code. Use ISO 3166-1 alpha-2 format (e.g., US, IN, GB)." 
+                });
+            }
+        }
+
         // Update fields if they are sent in request
         if (firstName !== undefined) user.firstName = firstName;
         if (lastName !== undefined) user.lastName = lastName;
