@@ -243,27 +243,38 @@ DO NOT wrap the response in markdown code blocks. Return ONLY the raw JSON objec
 const saveSummarySchema = Joi.object({
   fileName: Joi.string().trim().max(255).required(),
 
-  sourceType: Joi.string().trim().required(),
+  sourceType: Joi.string().trim().valid("upload", "platform").required(),
 
-  sourceUrl: Joi.string().uri().allow("", null),
+  sourceUrl: Joi.string().uri().allow("", null).optional(),
 
-  pageCount: Joi.number().integer().min(0).required(),
+  pageCount: Joi.number().integer().min(0).default(0),
 
-  wordCount: Joi.number().integer().min(0).required(),
+  wordCount: Joi.number().integer().min(0).default(0),
 
-  contentHash: Joi.string().required(),
+  contentHash: Joi.string().allow("", null).optional(),
 
   summary: Joi.string().required(),
 
-  topics: Joi.array().items(Joi.string()).required(),
+  topics: Joi.object({
+    chapters: Joi.array().items(Joi.string()).default([]),
+    subtopics: Joi.array().items(Joi.string()).default([]),
+    keywords: Joi.array().items(Joi.string()).default([]),
+  }).required(),
 
-  prerequisites: Joi.array().items(Joi.string()).required(),
+  prerequisites: Joi.array().items(Joi.string()).default([]),
 
-  difficulty: Joi.string().required(),
+  difficulty: Joi.object({
+    level: Joi.string().valid("Beginner", "Intermediate", "Advanced").required(),
+    explanation: Joi.string().required(),
+  }).required(),
 
-  readingTime: Joi.number().min(0).required(),
+  readingTime: Joi.object({
+    minutes: Joi.number().integer().positive().required(),
+    label: Joi.string().required(),
+    pages: Joi.number().integer().min(0).required(),
+  }).required(),
 
-  learningOutcomes: Joi.array().items(Joi.string()).required(),
+  learningOutcomes: Joi.array().items(Joi.string()).default([]),
 });
 
 /**
