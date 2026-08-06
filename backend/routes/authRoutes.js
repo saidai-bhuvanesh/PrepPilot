@@ -20,7 +20,7 @@ const {
 
 // Auth Routes
 router.post("/register", authLimiter, validateUserSignup, registerUser);
-router.post("/login", loginLimiter, validateUserLogin, loginUser);
+router.post("/login", authLimiter, loginLimiter, validateUserLogin, loginUser);
 
 // Frontend should GET this once on app load to prime the XSRF-TOKEN cookie
 // before it ever needs to call /refresh or /logout.
