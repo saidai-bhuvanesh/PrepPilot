@@ -91,12 +91,7 @@ async function generateHandler(req, res) {
       .replace(/```$/i, "")
       .trim();
 
-    console.log(
-      "[AI] promptLen=%d model=%s ms=%d",
-      prompt.length,
-      usedModel,
-      Date.now() - start,
-    );
+    // Debug logging removed for security - AI request metrics should be logged server-side only
     return res.json({ text: cleanedText, model: usedModel });
   } catch (error) {
     console.error("[AI] Generation failed:", error);
