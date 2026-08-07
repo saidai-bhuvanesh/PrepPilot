@@ -8,8 +8,25 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // we want to assert that the real policy logic is exercised.
 // ---------------------------------------------------------------------------
 
-vi.mock("../models/User.js", () => ({ findById: vi.fn() }));
+// Mock User model with pre-save hook simulation for password hashing
+vi.mock("../models/User.js", () => {
+  const mockSave = vi.fn().mockResolvedValue(undefined);
+  const MockUser = vi.fn().mockImplementation((data) => ({
+    ...data,
+    save: mockSave,
+  }));
+  MockUser.findById = vi.fn();
+  MockUser.mockSave = mockSave;
+  return { default: MockUser, __esModule: true };
+});
+
 vi.mock("bcryptjs", () => ({
+  __esModule: true,
+  default: {
+    compare: vi.fn(),
+    genSalt: vi.fn().mockResolvedValue("salt"),
+    hash: vi.fn().mockResolvedValue("hashed"),
+  },
   compare: vi.fn(),
   genSalt: vi.fn().mockResolvedValue("salt"),
   hash: vi.fn().mockResolvedValue("hashed"),
@@ -114,9 +131,11 @@ describe("changePassword — policy enforcement on newPassword", () => {
 // ---------------------------------------------------------------------------
 describe("changePassword — compliant newPassword succeeds", () => {
   it("returns 200 when newPassword satisfies the full policy", async () => {
+    const mockSave = vi.fn().mockResolvedValue(true);
     const mockUser = {
       password: "old-hash",
-      save: vi.fn().mockResolvedValue(true),
+      tokenVersion: 0,
+      save: mockSave,
     };
 
     User.findById.mockResolvedValue(mockUser);
@@ -127,8 +146,9 @@ describe("changePassword — compliant newPassword succeeds", () => {
 
     await changePassword(req, res);
 
-    expect(bcrypt.hash).toHaveBeenCalledWith("N3wP@ssword!", "salt");
-    expect(mockUser.save).toHaveBeenCalledOnce();
+    // Password is set directly; hashing is handled by User model's pre-save hook
+    expect(mockUser.password).toBe("N3wP@ssword!");
+    expect(mockSave).toHaveBeenCalledOnce();
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({ success: true, message: "Password updated successfully" })
     );

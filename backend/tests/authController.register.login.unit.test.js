@@ -3,16 +3,35 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // ─── Module Mocks ─────────────────────────────────────────────────────────────
 // Mirror the same mock shape used in authController.tokens.unit.test.js
 
-vi.mock("../models/User.js", () => ({
-  findById: vi.fn(),
-  findOne: vi.fn(),
-  create: vi.fn(),
-}));
+// Mock User model with pre-save hook simulation
+vi.mock("../models/User.js", () => {
+  const mockSave = vi.fn().mockResolvedValue(undefined);
+  const MockUser = vi.fn().mockImplementation((data) => ({
+    ...data,
+    _id: "new-user-id",
+    name: data.name,
+    email: data.email,
+    password: data.password,
+    tokenVersion: 0,
+    save: mockSave,
+  }));
+  MockUser.findById = vi.fn();
+  MockUser.findOne = vi.fn();
+  MockUser.create = vi.fn();
+  MockUser.mockSave = mockSave;
+  return { default: MockUser, __esModule: true };
+});
 
 vi.mock("bcryptjs", () => ({
+  __esModule: true,
+  default: {
+    compare: vi.fn(),
+    genSalt: vi.fn().mockResolvedValue("salt"),
+    hash: vi.fn().mockResolvedValue("hashed_password"),
+  },
   compare: vi.fn(),
   genSalt: vi.fn().mockResolvedValue("salt"),
-  hash: vi.fn().mockResolvedValue("hashed_refresh_token"),
+  hash: vi.fn().mockResolvedValue("hashed_password"),
 }));
 
 vi.mock("jsonwebtoken", () => ({
@@ -125,6 +144,7 @@ describe("registerUser", () => {
     validatePassword.mockReturnValueOnce({ valid: true, errors: [] });
     User.findOne.mockResolvedValueOnce(null); // email not taken
 
+    const mockSave = vi.fn().mockResolvedValue(undefined);
     const mockUser = {
       _id: "new-user-id",
       name: "Test User",
@@ -132,7 +152,8 @@ describe("registerUser", () => {
       profileImageUrl: "https://example.com/avatar.png",
       refreshTokenHash: null,
       refreshTokenExpiresAt: null,
-      save: vi.fn().mockResolvedValue(undefined),
+      tokenVersion: 0,
+      save: mockSave,
     };
     User.create.mockResolvedValueOnce(mockUser);
 
@@ -148,12 +169,12 @@ describe("registerUser", () => {
 
     await registerUser(req, res);
 
-    // Password must be hashed before storing
+    // Refresh token must be hashed before storing (password is hashed by User model pre-save hook)
     expect(bcrypt.genSalt).toHaveBeenCalledWith(10);
-    expect(bcrypt.hash).toHaveBeenCalled();
+    expect(bcrypt.hash).toHaveBeenCalled(); // For refresh token hashing
 
     // User document must be persisted after setting the refresh token hash
-    expect(mockUser.save).toHaveBeenCalledOnce();
+    expect(mockSave).toHaveBeenCalledOnce();
 
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(
