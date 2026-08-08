@@ -1,7 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-const { generateChatWithFallback } = require('../utils/geminiHelper');
+const { generateChatWithFallback, DEFAULT_CANDIDATE_MODELS } = require('../utils/geminiHelper');
 const { aiLimiter } = require('../middlewares/rateLimiter');
 const { validateAiPrompt } = require('../middlewares/validateAiPrompt');
 const sanitizeAiPrompt = require('../middlewares/sanitizeAiPrompt');
@@ -246,31 +245,40 @@ router.post('/solve', aiLimiter, sanitizeAiPrompt, validateProblemSolve, solveHa
 
 // List available models
 /**
- * List available Gemini models configured for the backend.
+ * List the Gemini models the backend is configured to use.
+ *
+ * Previously this called `genAI.listModels()`, which does not exist in
+ * `@google/generative-ai` and made `GET /api/models` return 500 on every
+ * request (issues #1624 / #1647). The SDK does not ship a model-listing
+ * helper, so we expose the static candidate list that `geminiHelper`
+ * actually falls back through at runtime, plus the explicitly configured
+ * model (if any).
+ *
  * @route GET /api/models
  * @param {import('express').Request} req
  * @param {import('express').Response} res
- * @returns {Promise<void>}
- * @throws {Error} When listing models fails.
+ * @returns {void}
  * @example
  * GET /api/models
  * @example
- * 200 {"availableModels": ["gemini-2.5-flash"], "configured": "models/gemini-2.5-flash", "note": "..."}
+ * 200 {"availableModels": ["gemini-2.5-flash", ...], "configured": "models/gemini-2.5-flash", "note": "..."}
  */
-router.get("/models", async (req, res) => {
-  try {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const models = await genAI.listModels();
-    const modelNames = models.map((m) => m.name.replace("models/", ""));
-    res.json({
-      availableModels: modelNames,
-      configured: process.env.GEMINI_MODEL || null,
-      note: "Actual availability depends on your API key & region. Set GEMINI_MODEL in .env to force a specific one.",
-    });
-  } catch (e) {
-    console.error("List models error:", e);
-    res.status(500).json({ error: "Failed to list models" });
-  }
+router.get("/models", (req, res) => {
+  const configured = process.env.GEMINI_MODEL
+    ? process.env.GEMINI_MODEL.startsWith("models/")
+      ? process.env.GEMINI_MODEL
+      : `models/${process.env.GEMINI_MODEL}`
+    : null;
+
+  const availableModels = DEFAULT_CANDIDATE_MODELS.map((m) =>
+    m.replace("models/", ""),
+  );
+
+  res.json({
+    availableModels,
+    configured,
+    note: "Static list of models the backend falls back through at runtime. Set GEMINI_MODEL in .env to force a specific primary model. Actual availability depends on your API key & region.",
+  });
 });
 
 module.exports = router;
