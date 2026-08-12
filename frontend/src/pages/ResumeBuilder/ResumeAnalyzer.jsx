@@ -4,6 +4,8 @@ import axiosInstance from "../../utils/axiosinstance";
 import { API_PATHS } from "../../utils/apiPaths";
 import { Link } from "react-router-dom";
 
+import { validateResumeFile } from "./validateResumeFile";
+
 const ResumeAnalyzer = () => {
   const [file, setFile] = useState(null);
   const [targetRole, setTargetRole] = useState("");
@@ -23,22 +25,27 @@ const ResumeAnalyzer = () => {
   const handleFileDrop = (e) => {
     e.preventDefault();
     const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile?.type === "application/pdf") {
-      setFile(droppedFile);
-      setError(null);
-    } else {
-      setError("Please upload a valid PDF file.");
+    const result = validateResumeFile(droppedFile);
+    if (!result.ok) {
+      setFile(null);
+      setError(result.error);
+      return;
     }
+    setFile(droppedFile);
+    setError(null);
   };
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
-    if (selectedFile?.type === "application/pdf") {
-      setFile(selectedFile);
-      setError(null);
-    } else {
-      setError("Please upload a valid PDF file.");
+    const result = validateResumeFile(selectedFile);
+    if (!result.ok) {
+      setFile(null);
+      e.target.value = "";
+      setError(result.error);
+      return;
     }
+    setFile(selectedFile);
+    setError(null);
   };
 
   const handleAnalyze = async () => {
